@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">SmartHomeApp</string>
+    <string name="app_name">AutoComfort</string>
 
     <!-- MainActivity -->
     <string name="login_successful">Sesión iniciada</string>
