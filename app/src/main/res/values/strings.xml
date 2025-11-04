@@ -1,0 +1,36 @@
+<resources>
+    <string name="app_name">SmartHomeApp</string>
+
+    <!-- MainActivity -->
+    <string name="login_successful">Sesión iniciada</string>
+    <string name="user_created">Usuario creado</string>
+    <string name="error_message">Error: %1$s</string>
+    <string name="fan">VENTILADOR</string>
+    <string name="lights">LUCES</string>
+    <string name="alarm">ALARMA</string>
+    <string name="auto_mode">Automático</string>
+    <string name="manual_mode">Manual</string>
+    <string name="mode_changed">Modo %1$s</string>
+    <string name="button_state_on">%1$s\nENCENDIDO</string>
+    <string name="button_state_off">%1$s\nAPAGADO</string>
+    <string name="temperature_format">%.1f °C</string>
+    <string name="humidity_format">%.1f %%</string>
+    <string name="light_format">%.0f lux</string>
+    <string name="sensor_error">Error sensores: %1$s</string>
+    <string name="controls_error">Error controles: %1$s</string>
+
+    <!-- activity_main.xml -->
+    <string name="app_title">CASA INTELIGENTE</string>
+    <string name="auto_mode_label">Modo Automático</string>
+    <string name="sensors">Sensores</string>
+    <string name="temperature_label">Temperatura:</string>
+    <string name="temperature_initial_value">-- °C</string>
+    <string name="humidity_label">Humedad:</string>
+    <string name="humidity_initial_value">-- %</string>
+    <string name="light_label">Luz:</string>
+    <string name="light_initial_value">-- lux</string>
+    <string name="controls">Controles</string>
+    <string name="fan_off">VENTILADOR\nAPAGADO</string>
+    <string name="lights_off">LUCES\nAPAGADO</string>
+    <string name="alarm_inactive">ALARMA\nINACTIVA</string>
+</resources>
