@@ -59,24 +59,24 @@ class SettingsActivity : AppCompatActivity() {
             }
 
             override fun onCancelled(error: DatabaseError) {
-                Toast.makeText(this@SettingsActivity, "Failed to load settings: ${error.message}", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this@SettingsActivity, "Error al cargar la configuración: ${error.message}", Toast.LENGTH_SHORT).show()
             }
         })
     }
 
     private fun saveSettings() {
         if (settings.tempMin >= settings.tempMax || settings.humidityMin >= settings.humidityMax || settings.lightMin >= settings.lightMax) {
-            Toast.makeText(this, "Invalid range: min value must be less than max value", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, "Rango inválido: el valor mínimo debe ser menor que el máximo.", Toast.LENGTH_LONG).show()
             return
         }
 
         deviceSettingsRef.setValue(settings)
             .addOnSuccessListener {
-                Toast.makeText(this, "Settings saved!", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "¡Configuración guardada!", Toast.LENGTH_SHORT).show()
                 finish()
             }
             .addOnFailureListener {
-                Toast.makeText(this, "Failed to save settings: ${it.message}", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "Error al guardar la configuración: ${it.message}", Toast.LENGTH_SHORT).show()
             }
     }
 }
