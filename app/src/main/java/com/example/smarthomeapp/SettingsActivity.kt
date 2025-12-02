@@ -18,22 +18,20 @@ import com.google.firebase.database.ValueEventListener
 
 class SettingsActivity : AppCompatActivity() {
 
-    private lateinit var auth: FirebaseAuth
-    private lateinit var userSettingsRef: DatabaseReference
+    private lateinit var deviceSettingsRef: DatabaseReference
 
     private var settings by mutableStateOf(Settings())
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        auth = FirebaseAuth.getInstance()
-        val userId = auth.currentUser?.uid
-        if (userId == null) {
-            finish() // Should not happen if called from MainActivity
+        // User needs to be authenticated to change settings
+        if (FirebaseAuth.getInstance().currentUser == null) {
+            finish()
             return
         }
 
-        userSettingsRef = FirebaseDatabase.getInstance().getReference("users/$userId/settings")
+        deviceSettingsRef = FirebaseDatabase.getInstance().getReference("device/settings")
 
         loadSettings()
 
@@ -52,7 +50,7 @@ class SettingsActivity : AppCompatActivity() {
     }
 
     private fun loadSettings() {
-        userSettingsRef.addListenerForSingleValueEvent(object : ValueEventListener {
+        deviceSettingsRef.addListenerForSingleValueEvent(object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
                 val loadedSettings = snapshot.getValue(Settings::class.java)
                 if (loadedSettings != null) {
@@ -72,7 +70,7 @@ class SettingsActivity : AppCompatActivity() {
             return
         }
 
-        userSettingsRef.setValue(settings)
+        deviceSettingsRef.setValue(settings)
             .addOnSuccessListener {
                 Toast.makeText(this, "Settings saved!", Toast.LENGTH_SHORT).show()
                 finish()

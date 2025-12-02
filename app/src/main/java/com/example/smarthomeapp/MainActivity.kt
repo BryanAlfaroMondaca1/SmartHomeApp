@@ -2,8 +2,6 @@ package com.example.smarthomeapp
 
 import android.content.Intent
 import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
 import android.widget.Toast
 import androidx.activity.compose.setContent
 import androidx.appcompat.app.AppCompatActivity
@@ -25,9 +23,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var userSettingsRef: DatabaseReference
     private lateinit var sensorsRef: DatabaseReference
     private lateinit var controlsRef: DatabaseReference
-
-    private val sensorUpdateHandler = Handler(Looper.getMainLooper())
-    private lateinit var sensorUpdateRunnable: Runnable
+    private lateinit var deviceSettingsRef: DatabaseReference
 
     private var homeName by mutableStateOf("Smart Home Control")
     private var isAutoMode by mutableStateOf(false)
@@ -53,12 +49,14 @@ class MainActivity : AppCompatActivity() {
         userSettingsRef = db.getReference("users/$userId/settings")
         sensorsRef = db.getReference("sensors")
         controlsRef = db.getReference("controls")
+        deviceSettingsRef = db.getReference("device/settings")
 
         setupListeners()
-        startSensorSimulation()
 
         setContent {
-            val onModeChange = remember<(Boolean) -> Unit> { { newMode -> userSettingsRef.child("mode").setValue(if (newMode) "auto" else "manual") } }
+            val onModeChange = remember<(Boolean) -> Unit> { { newMode ->
+                deviceSettingsRef.child("mode").setValue(if (newMode) "auto" else "manual")
+            } }
             val onFanClick = remember<() -> Unit> { { toggleControl("fan") } }
             val onLightsClick = remember<() -> Unit> { { toggleControl("lights") } }
             val onAlarmClick = remember<() -> Unit> { { toggleControl("alarm") } }
@@ -111,14 +109,19 @@ class MainActivity : AppCompatActivity() {
             override fun onDataChange(snapshot: DataSnapshot) {
                 temperature = snapshot.child("temperature").getValue(Double::class.java) ?: 0.0
                 humidity = snapshot.child("humidity").getValue(Double::class.java) ?: 0.0
-                light = snapshot.child("light").getValue(Double::class.java) ?: 0.0
+                val lightValue = snapshot.child("light").getValue(Any::class.java)
+                light = when(lightValue) {
+                    is Double -> lightValue
+                    is Long -> lightValue.toDouble()
+                    else -> 0.0
+                }
             }
             override fun onCancelled(error: DatabaseError) {
                 showToast("Failed to read sensor data: ${error.message}")
             }
         })
 
-        userSettingsRef.child("mode").addValueEventListener(object : ValueEventListener {
+        deviceSettingsRef.child("mode").addValueEventListener(object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
                 isAutoMode = snapshot.getValue(String::class.java) == "auto"
             }
@@ -131,28 +134,6 @@ class MainActivity : AppCompatActivity() {
             val currentState = snapshot.getValue(Boolean::class.java) ?: false
             controlsRef.child(control).setValue(!currentState)
         }
-    }
-
-    private fun startSensorSimulation() {
-        sensorUpdateRunnable = object : Runnable {
-            override fun run() {
-                val temp = 20.0 + Math.random() * 15.0
-                val humidity = 40.0 + Math.random() * 40.0
-                val light = 100.0 + Math.random() * 900.0
-
-                sensorsRef.child("temperature").setValue(temp)
-                sensorsRef.child("humidity").setValue(humidity)
-                sensorsRef.child("light").setValue(light)
-
-                sensorUpdateHandler.postDelayed(this, 5000)
-            }
-        }
-        sensorUpdateHandler.post(sensorUpdateRunnable)
-    }
-
-    override fun onDestroy() {
-        super.onDestroy()
-        sensorUpdateHandler.removeCallbacks(sensorUpdateRunnable)
     }
 
     private fun showToast(message: String) {
