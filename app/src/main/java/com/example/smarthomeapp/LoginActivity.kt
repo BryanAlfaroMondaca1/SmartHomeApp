@@ -4,40 +4,38 @@ import android.content.Intent
 import android.os.Bundle
 import android.util.Patterns
 import android.widget.Toast
+import androidx.activity.compose.setContent
 import androidx.appcompat.app.AppCompatActivity
-import com.example.smarthomeapp.databinding.ActivityLoginBinding
+import androidx.compose.runtime.remember
 import com.google.firebase.auth.FirebaseAuth
 
 class LoginActivity : AppCompatActivity() {
 
-    private lateinit var binding: ActivityLoginBinding
     private lateinit var auth: FirebaseAuth
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        binding = ActivityLoginBinding.inflate(layoutInflater)
-        setContentView(binding.root)
 
         auth = FirebaseAuth.getInstance()
 
         // Check if user is already logged in
         if (auth.currentUser != null) {
             goToMainActivity()
+            return
         }
 
-        binding.btnLogin.setOnClickListener {
-            handleLogin()
-        }
+        setContent {
+            val onLoginClick = remember<(String, String) -> Unit> { { email, password -> handleLogin(email, password) } }
+            val onRegisterClick = remember<(String, String) -> Unit> { { email, password -> handleRegister(email, password) } }
 
-        binding.btnRegister.setOnClickListener {
-            handleRegister()
+            LoginScreen(
+                onLoginClick = onLoginClick,
+                onRegisterClick = onRegisterClick
+            )
         }
     }
 
-    private fun handleLogin() {
-        val email = binding.etEmail.text.toString().trim()
-        val password = binding.etPassword.text.toString().trim()
-
+    private fun handleLogin(email: String, password: String) {
         if (!validateInput(email, password)) return
 
         auth.signInWithEmailAndPassword(email, password)
@@ -51,10 +49,7 @@ class LoginActivity : AppCompatActivity() {
             }
     }
 
-    private fun handleRegister() {
-        val email = binding.etEmail.text.toString().trim()
-        val password = binding.etPassword.text.toString().trim()
-
+    private fun handleRegister(email: String, password: String) {
         if (!validateInput(email, password)) return
 
         auth.createUserWithEmailAndPassword(email, password)

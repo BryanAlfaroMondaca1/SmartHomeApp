@@ -1,25 +1,25 @@
 package com.example.smarthomeapp
 
 import android.content.Intent
-import android.graphics.Color
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
-import android.widget.Button
 import android.widget.Toast
+import androidx.activity.compose.setContent
 import androidx.appcompat.app.AppCompatActivity
-import com.example.smarthomeapp.databinding.ActivityMainBinding
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.database.DataSnapshot
 import com.google.firebase.database.DatabaseError
 import com.google.firebase.database.DatabaseReference
 import com.google.firebase.database.FirebaseDatabase
 import com.google.firebase.database.ValueEventListener
-import java.util.Locale
 
 class MainActivity : AppCompatActivity() {
 
-    private lateinit var binding: ActivityMainBinding
     private lateinit var auth: FirebaseAuth
     private lateinit var db: FirebaseDatabase
     private lateinit var userSettingsRef: DatabaseReference
@@ -29,10 +29,17 @@ class MainActivity : AppCompatActivity() {
     private val sensorUpdateHandler = Handler(Looper.getMainLooper())
     private lateinit var sensorUpdateRunnable: Runnable
 
+    private var homeName by mutableStateOf("Smart Home Control")
+    private var isAutoMode by mutableStateOf(false)
+    private var temperature by mutableStateOf(0.0)
+    private var humidity by mutableStateOf(0.0)
+    private var light by mutableStateOf(0.0)
+    private var fanOn by mutableStateOf(false)
+    private var lightsOn by mutableStateOf(false)
+    private var alarmOn by mutableStateOf(false)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        binding = ActivityMainBinding.inflate(layoutInflater)
-        setContentView(binding.root)
 
         auth = FirebaseAuth.getInstance()
         db = FirebaseDatabase.getInstance()
@@ -47,97 +54,76 @@ class MainActivity : AppCompatActivity() {
         sensorsRef = db.getReference("sensors")
         controlsRef = db.getReference("controls")
 
-        setupUI()
         setupListeners()
         startSensorSimulation()
-    }
 
-    private fun setupUI() {
-        binding.btnLogout.setOnClickListener {
-            auth.signOut()
-            goToLoginActivity()
-        }
+        setContent {
+            val onModeChange = remember<(Boolean) -> Unit> { { newMode -> userSettingsRef.child("mode").setValue(if (newMode) "auto" else "manual") } }
+            val onFanClick = remember<() -> Unit> { { toggleControl("fan") } }
+            val onLightsClick = remember<() -> Unit> { { toggleControl("lights") } }
+            val onAlarmClick = remember<() -> Unit> { { toggleControl("alarm") } }
+            val onSettingsClick = remember<() -> Unit> { { startActivity(Intent(this, SettingsActivity::class.java)) } }
+            val onLogoutClick = remember<() -> Unit> { {
+                auth.signOut()
+                goToLoginActivity()
+            } }
 
-        binding.btnSettings.setOnClickListener {
-            val intent = Intent(this, SettingsActivity::class.java)
-            startActivity(intent)
+            MainScreen(
+                homeName = homeName,
+                isAutoMode = isAutoMode,
+                onModeChange = onModeChange,
+                temperature = temperature,
+                humidity = humidity,
+                light = light,
+                fanOn = fanOn,
+                lightsOn = lightsOn,
+                alarmOn = alarmOn,
+                onFanClick = onFanClick,
+                onLightsClick = onLightsClick,
+                onAlarmClick = onAlarmClick,
+                onSettingsClick = onSettingsClick,
+                onLogoutClick = onLogoutClick
+            )
         }
     }
 
     private fun setupListeners() {
-        // Listen for home name changes
         userSettingsRef.child("home_name").addValueEventListener(object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
-                val homeName = snapshot.getValue(String::class.java)
-                if (!homeName.isNullOrEmpty()) {
-                    binding.tvTitle.text = homeName
-                } else {
-                    binding.tvTitle.text = "Smart Home Control"
-                }
+                val name = snapshot.getValue(String::class.java)
+                homeName = if (!name.isNullOrEmpty()) name else "Smart Home Control"
             }
             override fun onCancelled(error: DatabaseError) { /* Handle error */ }
         })
 
-        // Listen for control state changes
         controlsRef.addValueEventListener(object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
-                updateControlButtons(snapshot)
+                fanOn = snapshot.child("fan").getValue(Boolean::class.java) ?: false
+                lightsOn = snapshot.child("lights").getValue(Boolean::class.java) ?: false
+                alarmOn = snapshot.child("alarm").getValue(Boolean::class.java) ?: false
             }
             override fun onCancelled(error: DatabaseError) {
                 showToast("Failed to read control states: ${error.message}")
             }
         })
 
-        // Listen for sensor data changes
         sensorsRef.addValueEventListener(object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
-                updateSensorReadings(snapshot)
+                temperature = snapshot.child("temperature").getValue(Double::class.java) ?: 0.0
+                humidity = snapshot.child("humidity").getValue(Double::class.java) ?: 0.0
+                light = snapshot.child("light").getValue(Double::class.java) ?: 0.0
             }
             override fun onCancelled(error: DatabaseError) {
                 showToast("Failed to read sensor data: ${error.message}")
             }
         })
 
-        // Listen for mode changes
         userSettingsRef.child("mode").addValueEventListener(object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
-                val isAutoMode = snapshot.getValue(String::class.java) == "auto"
-                binding.switchMode.isChecked = isAutoMode
-                binding.tvModeLabel.text = if (isAutoMode) "Automatic Mode" else "Manual Mode"
+                isAutoMode = snapshot.getValue(String::class.java) == "auto"
             }
             override fun onCancelled(error: DatabaseError) { /* Handle error */ }
         })
-
-        // Control button clicks
-        binding.btnFan.setOnClickListener { toggleControl("fan") }
-        binding.btnLights.setOnClickListener { toggleControl("lights") }
-        binding.btnAlarm.setOnClickListener { toggleControl("alarm") }
-
-        // Mode switch change
-        binding.switchMode.setOnCheckedChangeListener { _, isChecked ->
-            val newMode = if (isChecked) "auto" else "manual"
-            userSettingsRef.child("mode").setValue(newMode)
-        }
-    }
-
-    private fun updateControlButtons(snapshot: DataSnapshot) {
-        val fanOn = snapshot.child("fan").getValue(Boolean::class.java) ?: false
-        val lightsOn = snapshot.child("lights").getValue(Boolean::class.java) ?: false
-        val alarmOn = snapshot.child("alarm").getValue(Boolean::class.java) ?: false
-
-        updateButtonUI(binding.btnFan, "Fan", fanOn)
-        updateButtonUI(binding.btnLights, "Lights", lightsOn)
-        updateButtonUI(binding.btnAlarm, "Alarm", alarmOn)
-    }
-
-    private fun updateSensorReadings(snapshot: DataSnapshot) {
-        val temp = snapshot.child("temperature").getValue(Double::class.java) ?: 0.0
-        val humidity = snapshot.child("humidity").getValue(Double::class.java) ?: 0.0
-        val light = snapshot.child("light").getValue(Double::class.java) ?: 0.0
-
-        binding.tvTemperature.text = String.format(Locale.US, "Temperature: %.1f °C", temp)
-        binding.tvHumidity.text = String.format(Locale.US, "Humidity: %.1f %%", humidity)
-        binding.tvLight.text = String.format(Locale.US, "Light: %.0f lux", light)
     }
 
     private fun toggleControl(control: String) {
@@ -147,23 +133,12 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun updateButtonUI(button: Button, name: String, isOn: Boolean) {
-        if (isOn) {
-            button.text = "$name: ON"
-            button.setBackgroundColor(Color.GREEN)
-        } else {
-            button.text = "$name: OFF"
-            button.setBackgroundColor(Color.RED)
-        }
-    }
-
     private fun startSensorSimulation() {
         sensorUpdateRunnable = object : Runnable {
             override fun run() {
-                // Simulate sensor data updates
-                val temp = 20.0 + Math.random() * 15.0 // 20-35°C
-                val humidity = 40.0 + Math.random() * 40.0 // 40-80%
-                val light = 100.0 + Math.random() * 900.0 // 100-1000 lux
+                val temp = 20.0 + Math.random() * 15.0
+                val humidity = 40.0 + Math.random() * 40.0
+                val light = 100.0 + Math.random() * 900.0
 
                 sensorsRef.child("temperature").setValue(temp)
                 sensorsRef.child("humidity").setValue(humidity)
