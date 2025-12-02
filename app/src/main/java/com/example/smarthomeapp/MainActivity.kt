@@ -25,7 +25,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var controlsRef: DatabaseReference
     private lateinit var deviceSettingsRef: DatabaseReference
 
-    private var homeName by mutableStateOf("Smart Home Control")
+    private var homeName by mutableStateOf("Control de Casa Inteligente")
     private var isAutoMode by mutableStateOf(false)
     private var temperature by mutableStateOf(0.0)
     private var humidity by mutableStateOf(0.0)
@@ -47,7 +47,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         userSettingsRef = db.getReference("users/$userId/settings")
-        sensorsRef = db.getReference("sensors")
+        sensorsRef = db.getReference("sensores") // La ruta correcta de los sensores
         controlsRef = db.getReference("controls")
         deviceSettingsRef = db.getReference("device/settings")
 
@@ -89,7 +89,7 @@ class MainActivity : AppCompatActivity() {
         userSettingsRef.child("home_name").addValueEventListener(object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
                 val name = snapshot.getValue(String::class.java)
-                homeName = if (!name.isNullOrEmpty()) name else "Smart Home Control"
+                homeName = if (!name.isNullOrEmpty()) name else "Control de Casa Inteligente"
             }
             override fun onCancelled(error: DatabaseError) { /* Handle error */ }
         })
@@ -101,15 +101,16 @@ class MainActivity : AppCompatActivity() {
                 alarmOn = snapshot.child("alarm").getValue(Boolean::class.java) ?: false
             }
             override fun onCancelled(error: DatabaseError) {
-                showToast("Failed to read control states: ${error.message}")
+                showToast("Error al leer los controles: ${error.message}")
             }
         })
 
         sensorsRef.addValueEventListener(object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
-                temperature = snapshot.child("temperature").getValue(Double::class.java) ?: 0.0
-                humidity = snapshot.child("humidity").getValue(Double::class.java) ?: 0.0
-                val lightValue = snapshot.child("light").getValue(Any::class.java)
+                // *** CORREGIDO: Usar los nombres en español que envía el Arduino ***
+                temperature = snapshot.child("temperatura").getValue(Double::class.java) ?: 0.0
+                humidity = snapshot.child("humedad").getValue(Double::class.java) ?: 0.0
+                val lightValue = snapshot.child("luz").getValue(Any::class.java)
                 light = when(lightValue) {
                     is Double -> lightValue
                     is Long -> lightValue.toDouble()
@@ -117,7 +118,7 @@ class MainActivity : AppCompatActivity() {
                 }
             }
             override fun onCancelled(error: DatabaseError) {
-                showToast("Failed to read sensor data: ${error.message}")
+                showToast("Error al leer los sensores: ${error.message}")
             }
         })
 

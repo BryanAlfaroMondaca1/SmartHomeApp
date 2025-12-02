@@ -76,10 +76,10 @@ fun Header(
             modifier = Modifier.weight(1f)
         )
         IconButton(onClick = onSettingsClick) {
-            Icon(painter = painterResource(id = R.drawable.ic_settings), contentDescription = "Settings")
+            Icon(painter = painterResource(id = R.drawable.ic_settings), contentDescription = "Ajustes")
         }
         IconButton(onClick = onLogoutClick) {
-            Icon(painter = painterResource(id = R.drawable.ic_logout), contentDescription = "Logout")
+            Icon(painter = painterResource(id = R.drawable.ic_logout), contentDescription = "Cerrar Sesión")
         }
     }
 }
@@ -102,7 +102,7 @@ fun ModeSwitch(
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Text(
-                text = if (isAutoMode) "Automatic Mode" else "Manual Mode",
+                text = if (isAutoMode) "Modo Automático" else "Modo Manual",
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold
             )
@@ -123,11 +123,11 @@ fun SensorDataCard(
         shape = MaterialTheme.shapes.medium
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            SensorRow(iconRes = R.drawable.ic_thermostat, value = "Temperature: %.1f °C".format(temperature))
+            SensorRow(iconRes = R.drawable.ic_thermostat, value = "Temperatura: %.1f °C".format(temperature))
             Spacer(modifier = Modifier.height(16.dp))
-            SensorRow(iconRes = R.drawable.ic_water_drop, value = "Humidity: %.1f %%".format(humidity))
+            SensorRow(iconRes = R.drawable.ic_water_drop, value = "Humedad: %.1f %%".format(humidity))
             Spacer(modifier = Modifier.height(16.dp))
-            SensorRow(iconRes = R.drawable.ic_lightbulb, value = "Light: %.0f lux".format(light))
+            SensorRow(iconRes = R.drawable.ic_lightbulb, value = "Luz: %.0f lux".format(light))
         }
     }
 }
@@ -156,11 +156,11 @@ fun ControlsCard(
         shape = MaterialTheme.shapes.medium
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            ControlButton(text = "Fan", isOn = fanOn, onClick = onFanClick)
+            ControlButton(text = "Ventilador", isOn = fanOn, onClick = onFanClick)
             Spacer(modifier = Modifier.height(12.dp))
-            ControlButton(text = "Lights", isOn = lightsOn, onClick = onLightsClick)
+            ControlButton(text = "Luces", isOn = lightsOn, onClick = onLightsClick)
             Spacer(modifier = Modifier.height(12.dp))
-            ControlButton(text = "Alarm", isOn = alarmOn, onClick = onAlarmClick)
+            ControlButton(text = "Alarma", isOn = alarmOn, onClick = onAlarmClick)
         }
     }
 }
@@ -180,7 +180,7 @@ fun ControlButton(
             containerColor = if (isOn) Color.Green else Color.Red
         )
     ) {
-        Text(text = "$text: ${if (isOn) "ON" else "OFF"}", fontSize = 16.sp)
+        Text(text = "$text: ${if (isOn) "ENCENDIDO" else "APAGADO"}", fontSize = 16.sp)
     }
 }
 
@@ -188,7 +188,7 @@ fun ControlButton(
 @Composable
 fun DefaultPreview() {
     MainScreen(
-        homeName = "Smart Home Control",
+        homeName = "Control de Casa Inteligente",
         isAutoMode = true,
         onModeChange = {},
         temperature = 25.5,

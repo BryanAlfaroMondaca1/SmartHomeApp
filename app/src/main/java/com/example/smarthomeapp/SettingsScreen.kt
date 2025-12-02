@@ -28,7 +28,7 @@ fun SettingsScreen(
             .verticalScroll(rememberScrollState())
     ) {
         Text(
-            text = "Settings",
+            text = "CONFIGURACIÓN",
             style = MaterialTheme.typography.headlineMedium,
             modifier = Modifier.padding(bottom = 24.dp)
         )
@@ -36,63 +36,63 @@ fun SettingsScreen(
         OutlinedTextField(
             value = settings.homeName,
             onValueChange = { onSettingsChange(settings.copy(homeName = it)) },
-            label = { Text("Auto Name") },
+            label = { Text("Nombre de la Casa") },
             modifier = Modifier.fillMaxWidth()
         )
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        Text("Temperature (°C)", style = MaterialTheme.typography.titleLarge)
+        Text("Temperatura (°C)", style = MaterialTheme.typography.titleLarge)
         Row(Modifier.fillMaxWidth()) {
             OutlinedTextField(
                 value = settings.tempMin.toString(),
                 onValueChange = { onSettingsChange(settings.copy(tempMin = it.toDoubleOrNull() ?: 0.0)) },
-                label = { Text("Min") },
+                label = { Text("Mín") },
                 modifier = Modifier.weight(1f)
             )
             Spacer(modifier = Modifier.width(8.dp))
             OutlinedTextField(
                 value = settings.tempMax.toString(),
                 onValueChange = { onSettingsChange(settings.copy(tempMax = it.toDoubleOrNull() ?: 0.0)) },
-                label = { Text("Max") },
+                label = { Text("Máx") },
                 modifier = Modifier.weight(1f)
             )
         }
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        Text("Humidity (%)", style = MaterialTheme.typography.titleLarge)
+        Text("Humedad (%)", style = MaterialTheme.typography.titleLarge)
         Row(Modifier.fillMaxWidth()) {
             OutlinedTextField(
                 value = settings.humidityMin.toString(),
                 onValueChange = { onSettingsChange(settings.copy(humidityMin = it.toDoubleOrNull() ?: 0.0)) },
-                label = { Text("Min") },
+                label = { Text("Mín") },
                 modifier = Modifier.weight(1f)
             )
             Spacer(modifier = Modifier.width(8.dp))
             OutlinedTextField(
                 value = settings.humidityMax.toString(),
                 onValueChange = { onSettingsChange(settings.copy(humidityMax = it.toDoubleOrNull() ?: 0.0)) },
-                label = { Text("Max") },
+                label = { Text("Máx") },
                 modifier = Modifier.weight(1f)
             )
         }
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        Text("Light (lux)", style = MaterialTheme.typography.titleLarge)
+        Text("Luz (lux)", style = MaterialTheme.typography.titleLarge)
         Row(Modifier.fillMaxWidth()) {
             OutlinedTextField(
                 value = settings.lightMin.toString(),
                 onValueChange = { onSettingsChange(settings.copy(lightMin = it.toLongOrNull() ?: 0L)) },
-                label = { Text("Min") },
+                label = { Text("Mín") },
                 modifier = Modifier.weight(1f)
             )
             Spacer(modifier = Modifier.width(8.dp))
             OutlinedTextField(
                 value = settings.lightMax.toString(),
                 onValueChange = { onSettingsChange(settings.copy(lightMax = it.toLongOrNull() ?: 0L)) },
-                label = { Text("Max") },
+                label = { Text("Máx") },
                 modifier = Modifier.weight(1f)
             )
         }
@@ -103,14 +103,14 @@ fun SettingsScreen(
             onClick = onSaveClick,
             modifier = Modifier.fillMaxWidth()
         ) {
-            Text("Save Settings")
+            Text("Guardar Ajustes")
         }
 
         TextButton(
             onClick = onBackClick,
             modifier = Modifier.fillMaxWidth()
         ) {
-            Text("Back")
+            Text("Volver")
         }
     }
 }

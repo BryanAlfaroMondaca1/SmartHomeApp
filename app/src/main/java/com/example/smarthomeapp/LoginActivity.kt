@@ -18,7 +18,7 @@ class LoginActivity : AppCompatActivity() {
 
         auth = FirebaseAuth.getInstance()
 
-        // Check if user is already logged in
+
         if (auth.currentUser != null) {
             goToMainActivity()
             return
@@ -85,6 +85,6 @@ class LoginActivity : AppCompatActivity() {
     private fun goToMainActivity() {
         val intent = Intent(this, MainActivity::class.java)
         startActivity(intent)
-        finish() // Prevents user from coming back to the login screen
+        finish()
     }
 }

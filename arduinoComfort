@@ -11,32 +11,42 @@ const char* FIREBASE_HOST = "smarthomeapp-8e5ac-default-rtdb.firebaseio.com";
 const char* FIREBASE_AUTH = "wE8DDsoJpgAVFR40hdfFIpC3SbUis2LhXyZNSbtm";
 
 // --- DEFINICIÓN DE PINES ---
-#define DHTPIN D4
-#define DHTTYPE DHT11
-#define LDR_PIN A0
+#define DHTPIN      D4
+#define LDR_PIN     A0
+#define RELE_PIN    D5 // Ventilador
+#define LED_PIN     D1 // Luces
+#define BUZZER_PIN  D2 // Alarma
 
 // --- OBJETOS ---
 WiFiClientSecure client;
-DHT dht(DHTPIN, DHTTYPE);
+DHT dht(DHTPIN, DHT11);
 
 // --- VARIABLES GLOBALES ---
 unsigned long lastSendTime = 0;
-const unsigned long sendInterval = 5000; // Enviar datos cada 5 segundos
+unsigned long lastReadTime = 0;
+const unsigned long sendInterval = 5000; // Enviar datos de sensores cada 5 segundos
+const unsigned long readInterval = 2000; // Leer controles cada 2 segundos
 
 // ==================== SETUP ====================
 void setup() {
   Serial.begin(115200);
   Serial.println("\n========================================");
-  Serial.println("        SISTEMA DE SENSORES IoT         ");
+  Serial.println("        SISTEMA DE SENSORES Y CONTROL IoT         ");
   Serial.println("========================================");
 
   dht.begin();
   pinMode(LDR_PIN, INPUT);
+  pinMode(RELE_PIN, OUTPUT);
+  pinMode(LED_PIN, OUTPUT);
+  pinMode(BUZZER_PIN, OUTPUT);
+
+  digitalWrite(RELE_PIN, LOW);
+  digitalWrite(LED_PIN, LOW);
+  digitalWrite(BUZZER_PIN, LOW);
 
   conectarWiFi();
 
-  // Necesario para peticiones HTTPS a Firebase
-  client.setInsecure(); 
+  client.setInsecure();
   client.setBufferSizes(1024, 512);
 
   Serial.println("\n========================================");
@@ -48,18 +58,20 @@ void setup() {
 void loop() {
   unsigned long currentTime = millis();
 
-  // Reintentar conexión si se pierde
   if (WiFi.status() != WL_CONNECTED) {
     conectarWiFi();
   }
 
-  // Enviar datos a Firebase cada `sendInterval` milisegundos
   if (currentTime - lastSendTime >= sendInterval) {
     enviarSensoresFirebase();
     lastSendTime = currentTime;
   }
 
-  // Pequeña pausa para no saturar el procesador
+  if (currentTime - lastReadTime >= readInterval) {
+    leerControlesFirebase();
+    lastReadTime = currentTime;
+  }
+
   delay(10);
 }
 
@@ -67,91 +79,105 @@ void loop() {
 void conectarWiFi() {
   Serial.print("Conectando a WiFi: ");
   Serial.print(WIFI_SSID);
-
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
     Serial.print(".");
   }
-
   Serial.println("\nWiFi Conectado!");
   Serial.print("Dirección IP: ");
   Serial.println(WiFi.localIP());
 }
 
 // ==================== FUNCIONES FIREBASE ====================
+void leerControlesFirebase() {
+  String url = "https://" + String(FIREBASE_HOST) + "/controls.json";
+  String payload;
+
+  if (getHttpRequest(url, payload)) {
+    StaticJsonBuffer<200> jsonBuffer;
+    JsonObject& root = jsonBuffer.parseObject(payload);
+
+    if (!root.success()) {
+      Serial.println("Error al parsear JSON de controles.");
+      return;
+    }
+
+    bool fanOn = root["fan"];
+    bool lightsOn = root["lights"];
+    bool alarmOn = root["alarm"];
+
+    digitalWrite(RELE_PIN, fanOn ? HIGH : LOW);
+    digitalWrite(LED_PIN, lightsOn ? HIGH : LOW);
+    digitalWrite(BUZZER_PIN, alarmOn ? HIGH : LOW);
+    
+    Serial.println("Controles actualizados desde Firebase.");
+  }
+}
+
 void enviarSensoresFirebase() {
-  // 1. Leer los sensores
   float temperatura = dht.readTemperature();
+  float humedad = dht.readHumidity();
   int luz = analogRead(LDR_PIN);
 
-  // Validar lectura de temperatura
-  if (isnan(temperatura)) {
-    Serial.println("Error al leer el sensor de temperatura.");
+  if (isnan(temperatura) || isnan(humedad)) {
+    Serial.println("Error al leer el sensor DHT11.");
     return;
   }
 
-  Serial.println("----------------------------------------");
-  Serial.print("Lectura Actual -> ");
-  Serial.print("Temperatura: ");
-  Serial.print(temperatura);
-  Serial.print("°C, Luz: ");
-  Serial.println(luz);
-
-  // 2. Preparar los datos en formato JSON (Compatible con ArduinoJson v5)
   StaticJsonBuffer<200> jsonBuffer;
   JsonObject& root = jsonBuffer.createObject();
   root["temperatura"] = temperatura;
+  root["humedad"] = humedad;
   root["luz"] = luz;
 
   String jsonData;
   root.printTo(jsonData);
 
-  // 3. Enviar los datos al nodo "/sensores" de Firebase
   String url = "https://" + String(FIREBASE_HOST) + "/sensores.json";
 
   if (sendHttpRequest("PUT", url, jsonData)) {
-    Serial.println("-> Datos enviados a Firebase correctamente.");
+    Serial.println("Datos de sensores enviados a Firebase.");
   } else {
-    Serial.println("-> Error al enviar datos a Firebase.");
+    Serial.println("Error al enviar datos de sensores.");
   }
-  Serial.println("----------------------------------------");
+}
+
+bool getHttpRequest(String url, String& payload) {
+    HTTPClient https;
+    if (strlen(FIREBASE_AUTH) > 0) {
+        url += "?auth=" + String(FIREBASE_AUTH);
+    }
+
+    if (https.begin(client, url)) {
+        int httpCode = https.GET();
+        if (httpCode == HTTP_CODE_OK) {
+            payload = https.getString();
+            https.end();
+            return true;
+        }
+        Serial.printf("[HTTPS] GET... falló, código de error: %d\n", httpCode);
+        https.end();
+    }
+    return false;
 }
 
 bool sendHttpRequest(String method, String url, String payload) {
   HTTPClient https;
-
   if (strlen(FIREBASE_AUTH) > 0) {
     url += "?auth=" + String(FIREBASE_AUTH);
   }
 
   if (https.begin(client, url)) {
     https.addHeader("Content-Type", "application/json");
+    int httpCode = https.PUT(payload);
 
-    int httpCode;
-    if (method == "PUT") {
-      httpCode = https.PUT(payload);
-    } else {
-      // Se pueden agregar otros métodos como POST si es necesario
-      httpCode = -1;
-    }
-
-    if (httpCode > 0) {
-      if (httpCode == HTTP_CODE_OK || httpCode == HTTP_CODE_CREATED) {
+    if (httpCode == HTTP_CODE_OK) {
         https.end();
         return true;
-      } else {
-        Serial.printf("[HTTPS] Falló, código de error: %d\n", httpCode);
-      }
-    } else {
-      Serial.printf("[HTTPS] Error en la conexión: %s\n", https.errorToString(httpCode).c_str());
     }
-
+    Serial.printf("[HTTPS] PUT... falló, código de error: %d\n", httpCode);
     https.end();
-  } else {
-    Serial.println("[HTTPS] No se pudo iniciar la conexión.");
   }
-
   return false;
 }

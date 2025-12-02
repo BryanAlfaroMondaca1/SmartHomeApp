@@ -33,7 +33,7 @@ fun LoginScreen(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(
-            text = "Auto Comfort Login",
+            text = "Inicio de Sesión",
             style = MaterialTheme.typography.headlineMedium,
             modifier = Modifier.padding(bottom = 24.dp)
         )
@@ -41,7 +41,7 @@ fun LoginScreen(
         OutlinedTextField(
             value = email,
             onValueChange = { email = it },
-            label = { Text("Email") },
+            label = { Text("Correo Electrónico") },
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(bottom = 16.dp)
@@ -50,7 +50,7 @@ fun LoginScreen(
         OutlinedTextField(
             value = password,
             onValueChange = { password = it },
-            label = { Text("Password") },
+            label = { Text("Contraseña") },
             visualTransformation = PasswordVisualTransformation(),
             modifier = Modifier
                 .fillMaxWidth()
@@ -61,14 +61,14 @@ fun LoginScreen(
             onClick = { onLoginClick(email, password) },
             modifier = Modifier.fillMaxWidth()
         ) {
-            Text("Login")
+            Text("Iniciar Sesión")
         }
 
         TextButton(
             onClick = { onRegisterClick(email, password) },
             modifier = Modifier.fillMaxWidth()
         ) {
-            Text("Register")
+            Text("Registrarse")
         }
     }
 }
