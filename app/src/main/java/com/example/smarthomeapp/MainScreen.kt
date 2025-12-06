@@ -1,7 +1,6 @@
 package com.example.smarthomeapp
 
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -31,9 +30,10 @@ fun MainScreen(
     onSettingsClick: () -> Unit,
     onLogoutClick: () -> Unit
 ) {
+    // <--- CORRECCIÓN DEFINITIVA: Tema claro con texto negro forzado
     Surface(
         modifier = Modifier.fillMaxSize(),
-        color = Color(0xFFF5F5F5)
+        color = Color(0xFFF0F2F5) // Fondo gris claro para que resalten las tarjetas
     ) {
         Column(
             modifier = Modifier
@@ -72,14 +72,14 @@ fun Header(
             text = homeName,
             fontSize = 26.sp,
             fontWeight = FontWeight.Bold,
-            color = Color.Black,
-            modifier = Modifier.weight(1f)
+            color = Color.Black // Forzado a negro
         )
+        Spacer(modifier = Modifier.weight(1f))
         IconButton(onClick = onSettingsClick) {
-            Icon(painter = painterResource(id = R.drawable.ic_settings), contentDescription = "Ajustes")
+            Icon(painter = painterResource(id = R.drawable.ic_settings), contentDescription = "Ajustes", tint = Color.DarkGray)
         }
         IconButton(onClick = onLogoutClick) {
-            Icon(painter = painterResource(id = R.drawable.ic_logout), contentDescription = "Cerrar Sesión")
+            Icon(painter = painterResource(id = R.drawable.ic_logout), contentDescription = "Cerrar Sesión", tint = Color.DarkGray)
         }
     }
 }
@@ -92,7 +92,8 @@ fun ModeSwitch(
     Card(
         modifier = Modifier.fillMaxWidth(),
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-        shape = MaterialTheme.shapes.medium
+        shape = MaterialTheme.shapes.medium,
+        colors = CardDefaults.cardColors(containerColor = Color.White) // Fondo de tarjeta blanco
     ) {
         Row(
             modifier = Modifier
@@ -104,7 +105,8 @@ fun ModeSwitch(
             Text(
                 text = if (isAutoMode) "Modo Automático" else "Modo Manual",
                 fontSize = 18.sp,
-                fontWeight = FontWeight.Bold
+                fontWeight = FontWeight.Bold,
+                color = Color.Black // Forzado a negro
             )
             Switch(checked = isAutoMode, onCheckedChange = onModeChange)
         }
@@ -117,17 +119,25 @@ fun SensorDataCard(
     humidity: Double,
     light: Double
 ) {
+    val umbralOscuridad = 500
+    val lightText = if (light > umbralOscuridad) {
+        "Iluminación baja, luz encendida"
+    } else {
+        "Iluminación suficiente, luz apagada"
+    }
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-        shape = MaterialTheme.shapes.medium
+        shape = MaterialTheme.shapes.medium,
+        colors = CardDefaults.cardColors(containerColor = Color.White) // Fondo de tarjeta blanco
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             SensorRow(iconRes = R.drawable.ic_thermostat, value = "Temperatura: %.1f °C".format(temperature))
             Spacer(modifier = Modifier.height(16.dp))
             SensorRow(iconRes = R.drawable.ic_water_drop, value = "Humedad: %.1f %%".format(humidity))
             Spacer(modifier = Modifier.height(16.dp))
-            SensorRow(iconRes = R.drawable.ic_lightbulb, value = "Luz: %.0f lux".format(light))
+            SensorRow(iconRes = R.drawable.ic_lightbulb, value = lightText)
         }
     }
 }
@@ -137,7 +147,7 @@ fun SensorRow(iconRes: Int, value: String) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Image(painter = painterResource(id = iconRes), contentDescription = null, modifier = Modifier.size(24.dp))
         Spacer(modifier = Modifier.width(16.dp))
-        Text(text = value, fontSize = 18.sp, modifier = Modifier.weight(1f))
+        Text(text = value, fontSize = 18.sp, color = Color.Black, modifier = Modifier.weight(1f)) // Forzado a negro
     }
 }
 
@@ -153,7 +163,8 @@ fun ControlsCard(
     Card(
         modifier = Modifier.fillMaxWidth(),
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-        shape = MaterialTheme.shapes.medium
+        shape = MaterialTheme.shapes.medium,
+        colors = CardDefaults.cardColors(containerColor = Color.White) // Fondo de tarjeta blanco
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             ControlButton(text = "Ventilador", isOn = fanOn, onClick = onFanClick)
@@ -177,10 +188,10 @@ fun ControlButton(
             .fillMaxWidth()
             .height(60.dp),
         colors = ButtonDefaults.buttonColors(
-            containerColor = if (isOn) Color.Green else Color.Red
+            containerColor = if (isOn) Color(0xFF4CAF50) else Color(0xFFF44336)
         )
     ) {
-        Text(text = "$text: ${if (isOn) "ENCENDIDO" else "APAGADO"}", fontSize = 16.sp)
+        Text(text = "$text: ${if (isOn) "ENCENDIDO" else "APAGADO"}", fontSize = 16.sp, color = Color.White)
     }
 }
 
@@ -188,12 +199,12 @@ fun ControlButton(
 @Composable
 fun DefaultPreview() {
     MainScreen(
-        homeName = "Control de Casa Inteligente",
+        homeName = "Control de Auto Inteligente",
         isAutoMode = true,
         onModeChange = {},
         temperature = 25.5,
         humidity = 60.2,
-        light = 500.0,
+        light = 300.0,
         fanOn = false,
         lightsOn = true,
         alarmOn = false,

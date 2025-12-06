@@ -3,10 +3,10 @@
 #include <WiFiClientSecure.h>
 #include <ArduinoJson.h>
 #include <DHT.h>
+#include <WiFiManager.h>
+#include <LittleFS.h>
 
-// --- CONFIGURACIÓN DE RED Y FIREBASE ---
-const char* WIFI_SSID = "4br";
-const char* WIFI_PASSWORD = "12345678";
+// --- CONFIGURACIÓN DE FIREBASE ---
 const char* FIREBASE_HOST = "smarthomeapp-8e5ac-default-rtdb.firebaseio.com";
 const char* FIREBASE_AUTH = "wE8DDsoJpgAVFR40hdfFIpC3SbUis2LhXyZNSbtm";
 
@@ -14,18 +14,29 @@ const char* FIREBASE_AUTH = "wE8DDsoJpgAVFR40hdfFIpC3SbUis2LhXyZNSbtm";
 #define DHTPIN      D4
 #define LDR_PIN     A0
 #define RELE_PIN    D5 // Ventilador
-#define LED_PIN     D1 // Luces
+#define LED_PIN     D1 // Luces (control manual)
 #define BUZZER_PIN  D2 // Alarma
+#define STATUS_LED  2  // LED integrado en la placa
+#define LED_OSCURIDAD_PIN D6
+
+// --- UMBRALES Y CONFIGURACIÓN ---
+const int UMBRAL_OSCURIDAD = 500; // Si el valor del sensor es MAYOR que esto, está oscuro
+
+String modoOperacion = "manual";
+double tempMax = 30.0;
 
 // --- OBJETOS ---
 WiFiClientSecure client;
 DHT dht(DHTPIN, DHT11);
 
-// --- VARIABLES GLOBALES ---
+// --- VARIABLES GLOBALES DE TIEMPO ---
 unsigned long lastSendTime = 0;
 unsigned long lastReadTime = 0;
-const unsigned long sendInterval = 5000; // Enviar datos de sensores cada 5 segundos
-const unsigned long readInterval = 2000; // Leer controles cada 2 segundos
+unsigned long lastConfigReadTime = 0;
+
+const unsigned long sendInterval = 5000;
+const unsigned long readInterval = 2000;
+const unsigned long configReadInterval = 15000;
 
 // ==================== SETUP ====================
 void setup() {
@@ -34,22 +45,42 @@ void setup() {
   Serial.println("        SISTEMA DE SENSORES Y CONTROL IoT         ");
   Serial.println("========================================");
 
-  dht.begin();
+  pinMode(STATUS_LED, OUTPUT);
+  digitalWrite(STATUS_LED, LOW);
+
+  if(!LittleFS.begin()){
+    Serial.println("Error al montar el sistema de archivos");
+    return;
+  }
+  
+dht.begin();
   pinMode(LDR_PIN, INPUT);
   pinMode(RELE_PIN, OUTPUT);
   pinMode(LED_PIN, OUTPUT);
   pinMode(BUZZER_PIN, OUTPUT);
+  pinMode(LED_OSCURIDAD_PIN, OUTPUT);
 
   digitalWrite(RELE_PIN, LOW);
   digitalWrite(LED_PIN, LOW);
   digitalWrite(BUZZER_PIN, LOW);
+  digitalWrite(LED_OSCURIDAD_PIN, LOW);
+  
+  WiFiManager wm;
+  if(!wm.autoConnect("AutoComfort-Config")) {
+      Serial.println("Fallo al conectar. Reiniciando...");
+      delay(3000);
+      ESP.restart();
+  } 
 
-  conectarWiFi();
+  Serial.println("\nWiFi Conectado!");
+  Serial.print("Dirección IP: ");
+  Serial.println(WiFi.localIP());
 
   client.setInsecure();
   client.setBufferSizes(1024, 512);
 
-  Serial.println("\n========================================");
+  digitalWrite(STATUS_LED, HIGH);
+  Serial.println("========================================");
   Serial.println("          SISTEMA LISTO");
   Serial.println("========================================\n");
 }
@@ -58,71 +89,101 @@ void setup() {
 void loop() {
   unsigned long currentTime = millis();
 
-  if (WiFi.status() != WL_CONNECTED) {
-    conectarWiFi();
-  }
+  if (WiFi.status() == WL_CONNECTED) {
+    digitalWrite(STATUS_LED, HIGH); // LED Apagado = Conectado
+    procesarColaOffline();
 
-  if (currentTime - lastSendTime >= sendInterval) {
-    enviarSensoresFirebase();
-    lastSendTime = currentTime;
-  }
-
-  if (currentTime - lastReadTime >= readInterval) {
-    leerControlesFirebase();
-    lastReadTime = currentTime;
-  }
-
-  delay(10);
-}
-
-// ==================== FUNCIONES WIFI ====================
-void conectarWiFi() {
-  Serial.print("Conectando a WiFi: ");
-  Serial.print(WIFI_SSID);
-  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(500);
-    Serial.print(".");
-  }
-  Serial.println("\nWiFi Conectado!");
-  Serial.print("Dirección IP: ");
-  Serial.println(WiFi.localIP());
-}
-
-// ==================== FUNCIONES FIREBASE ====================
-void leerControlesFirebase() {
-  String url = "https://" + String(FIREBASE_HOST) + "/controls.json";
-  String payload;
-
-  if (getHttpRequest(url, payload)) {
-    StaticJsonBuffer<200> jsonBuffer;
-    JsonObject& root = jsonBuffer.parseObject(payload);
-
-    if (!root.success()) {
-      Serial.println("Error al parsear JSON de controles.");
-      return;
+    if (currentTime - lastConfigReadTime >= configReadInterval) {
+      leerConfiguraciones();
+      lastConfigReadTime = currentTime;
     }
 
-    bool fanOn = root["fan"];
-    bool lightsOn = root["lights"];
-    bool alarmOn = root["alarm"];
+    if (currentTime - lastSendTime >= sendInterval) {
+      enviarSensoresFirebase(true);
+      lastSendTime = currentTime;
+    }
 
-    digitalWrite(RELE_PIN, fanOn ? HIGH : LOW);
-    digitalWrite(LED_PIN, lightsOn ? HIGH : LOW);
-    digitalWrite(BUZZER_PIN, alarmOn ? HIGH : LOW);
-    
-    Serial.println("Controles actualizados desde Firebase.");
+    if (currentTime - lastReadTime >= readInterval) {
+      leerControlesFirebase();
+      lastReadTime = currentTime;
+    }
+
+  } else {
+    digitalWrite(STATUS_LED, LOW); // LED Encendido = Sin Conexión
+    if (currentTime - lastSendTime >= sendInterval) {
+      enviarSensoresFirebase(false);
+      lastSendTime = currentTime;
+    }
+  }
+
+  controlarLuzAutomatica();
+
+  delay(200);
+}
+
+// ==================== FUNCIONES DE CONTROL ====================
+
+void controlarLuzAutomatica() {
+  static int lastLuzState = -1; 
+  int valorLuz = analogRead(LDR_PIN);
+  int currentLuzState;
+
+  if (valorLuz > UMBRAL_OSCURIDAD) { // Si el valor es ALTO (oscuro)
+    digitalWrite(LED_OSCURIDAD_PIN, LOW); // APAGAR el LED
+    currentLuzState = LOW;
+  } else { // Si el valor es BAJO (hay luz)
+    digitalWrite(LED_OSCURIDAD_PIN, HIGH); // ENCENDER el LED
+    currentLuzState = HIGH;
+  }
+
+  if (currentLuzState != lastLuzState) {
+    lastLuzState = currentLuzState;
   }
 }
 
-void enviarSensoresFirebase() {
-  float temperatura = dht.readTemperature();
+void leerConfiguraciones(){
+  String url = "https://" + String(FIREBASE_HOST) + "/device/settings.json";
+  String payload;
+  if (getHttpRequest(url, payload)) {
+      StaticJsonBuffer<200> jsonBuffer;
+      JsonObject& root = jsonBuffer.parseObject(payload);
+      if (!root.success()) return;
+      
+      if(root.containsKey("mode")) modoOperacion = root["mode"].as<String>();
+      if(root.containsKey("tempMax")) tempMax = root["tempMax"].as<double>();
+  }
+}
+
+// ==================== FUNCIONES FIREBASE Y OFFLINE ====================
+
+void enviarSensoresFirebase(bool enTiempoReal) {
+  float raw_temperatura = dht.readTemperature();
   float humedad = dht.readHumidity();
+  
+  if (isnan(raw_temperatura) || isnan(humedad)) {
+    Serial.println("Error al leer el sensor DHT11. Revisa el cableado.");
+    return;
+  }
+
+  // <--- MEJORA: Suma directa de 25 grados a la temperatura
+  float temperatura = raw_temperatura + 25.0;
   int luz = analogRead(LDR_PIN);
 
-  if (isnan(temperatura) || isnan(humedad)) {
-    Serial.println("Error al leer el sensor DHT11.");
-    return;
+  if (modoOperacion == "auto" && enTiempoReal) {
+    bool activarAlarma = (temperatura > tempMax);
+    digitalWrite(RELE_PIN, activarAlarma ? HIGH : LOW);
+    digitalWrite(BUZZER_PIN, activarAlarma ? HIGH : LOW);
+
+    String controlUrl = "https://" + String(FIREBASE_HOST) + "/controls.json";
+    StaticJsonBuffer<200> controlJsonBuffer;
+    JsonObject& controlRoot = controlJsonBuffer.createObject();
+    controlRoot["fan"] = activarAlarma;
+    controlRoot["alarm"] = activarAlarma;
+    controlRoot["lights"] = digitalRead(LED_PIN) == HIGH;
+    
+    String controlData;
+    controlRoot.printTo(controlData);
+    sendHttpRequest("PUT", controlUrl, controlData);
   }
 
   StaticJsonBuffer<200> jsonBuffer;
@@ -130,24 +191,69 @@ void enviarSensoresFirebase() {
   root["temperatura"] = temperatura;
   root["humedad"] = humedad;
   root["luz"] = luz;
+  root["timestamp"] = millis();
 
   String jsonData;
   root.printTo(jsonData);
 
-  String url = "https://" + String(FIREBASE_HOST) + "/sensores.json";
-
-  if (sendHttpRequest("PUT", url, jsonData)) {
-    Serial.println("Datos de sensores enviados a Firebase.");
+  if (enTiempoReal) {
+      String url = "https://" + String(FIREBASE_HOST) + "/sensores.json";
+      if (!sendHttpRequest("PUT", url, jsonData)) {
+        guardarEnCola(jsonData);
+      }
   } else {
-    Serial.println("Error al enviar datos de sensores.");
+      guardarEnCola(jsonData);
+  }
+}
+
+void guardarEnCola(String data) {
+  File file = LittleFS.open("/datalog.txt", "a");
+  if (file) {
+    file.println(data);
+    file.close();
+  }
+}
+
+void procesarColaOffline() {
+  if (LittleFS.exists("/datalog.txt")) {
+    File file = LittleFS.open("/datalog.txt", "r");
+    String url = "https://" + String(FIREBASE_HOST) + "/historial.json";
+
+    while(file.available()) {
+      String line = file.readStringUntil('\n');
+      if (line.length() > 0) {
+        if (!sendHttpRequest("POST", url, line)) {
+          file.close();
+          return;
+        }
+      }
+    }
+    file.close();
+    LittleFS.remove("/datalog.txt");
+  }
+}
+
+void leerControlesFirebase() {
+  if (modoOperacion != "manual") return;
+
+  String url = "https://" + String(FIREBASE_HOST) + "/controls.json";
+  String payload;
+
+  if (getHttpRequest(url, payload)) {
+    StaticJsonBuffer<200> jsonBuffer;
+    JsonObject& root = jsonBuffer.parseObject(payload);
+
+    if (!root.success()) return;
+
+    digitalWrite(RELE_PIN, root["fan"].as<bool>() ? HIGH : LOW);
+    digitalWrite(LED_PIN, root["lights"].as<bool>() ? HIGH : LOW);
+    digitalWrite(BUZZER_PIN, root["alarm"].as<bool>() ? HIGH : LOW);
   }
 }
 
 bool getHttpRequest(String url, String& payload) {
     HTTPClient https;
-    if (strlen(FIREBASE_AUTH) > 0) {
-        url += "?auth=" + String(FIREBASE_AUTH);
-    }
+    if (strlen(FIREBASE_AUTH) > 0) url += "?auth=" + String(FIREBASE_AUTH);
 
     if (https.begin(client, url)) {
         int httpCode = https.GET();
@@ -156,7 +262,6 @@ bool getHttpRequest(String url, String& payload) {
             https.end();
             return true;
         }
-        Serial.printf("[HTTPS] GET... falló, código de error: %d\n", httpCode);
         https.end();
     }
     return false;
@@ -164,19 +269,18 @@ bool getHttpRequest(String url, String& payload) {
 
 bool sendHttpRequest(String method, String url, String payload) {
   HTTPClient https;
-  if (strlen(FIREBASE_AUTH) > 0) {
-    url += "?auth=" + String(FIREBASE_AUTH);
-  }
+  if (strlen(FIREBASE_AUTH) > 0) url += "?auth=" + String(FIREBASE_AUTH);
 
   if (https.begin(client, url)) {
     https.addHeader("Content-Type", "application/json");
-    int httpCode = https.PUT(payload);
+    int httpCode = 0;
+    if (method == "PUT") httpCode = https.PUT(payload);
+    else if (method == "POST") httpCode = https.POST(payload);
 
     if (httpCode == HTTP_CODE_OK) {
         https.end();
         return true;
     }
-    Serial.printf("[HTTPS] PUT... falló, código de error: %d\n", httpCode);
     https.end();
   }
   return false;
